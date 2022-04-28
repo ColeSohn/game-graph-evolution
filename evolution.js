@@ -122,13 +122,18 @@ class Population {
 
   /**
    * @description Create a child Agent object from two parent objects based on their
-   * chromosomes.
+   * chromosomes. Randomly choose chromosomes from either parent for the child Agent,
+   * with some mutation probability (extra noise)
+   * @param {Agent} parent_1 An Agent from the current generation's mating pool
+   * @param {Agent} parent_2 Another Agent from the current generation's mating pool
+   * @returns {Agent} child A new Agent whose genes are a combination of parent_1 and parent_2 
+   * with probability of additional mutation.
    */
   mate(parent_1, parent_2) {
+    //Step 1: Create child Agent from input parent Agents.  
+    //For each chromosome, choose randomly from either parent
     let genes = [];
-
-    for (let i = 0; i < p1.chromosome.length; i++) {
-    // Take chromosome with 50% prob
+    for (let i = 0; i < parent_1.chromosome.length; i++) {
       if (random() < 0.5) {
         genes[i] = parent_1.chromosome[i];
       } else {
@@ -136,14 +141,26 @@ class Population {
       }
     }
 
+    //Create new child Agent object with genes, fitnesses, and color inherited from parents
     let fitness = parent_1.fitness + parent_2.fitness;
     let child = new Agent(genes, fitness);
-
     child.color = random([parent_1.color, parent_2.color]);
-    let mut_amt = this.mutation_amt;
+
+    //Chance of a random tweak to gene output
+    this.mutate(child)
     
+    return child;
+  }
+
+  /**
+   * @description Mutations: With a probability of this.mutant_prob, a random gene from the child is tweaked
+   */
+  mutate(child){
+    let genes = child.chromosome
+    let mut_amt = this.mutation_amt;
     if (random() < this.mutant_prob) {
       let gene_index = floor(random(0, genes.length)); //Mutant Gene
+      //Remap from gene space to [0, 1]
       let gene_val = map(
         genes[gene_index],
         this.gene_ranges[gene_index][0],
@@ -151,13 +168,16 @@ class Population {
         0,
         1
       );
-
+      
+      //Mutation can be (+) or (-)
       if (random() > 0.5) {
         mut_amt *= -1;
       }
 
-      // Clamp value between 0 and 1
+      // Apply mutation and clamp values between 0 and 1
       gene_val = constrain(gene_val + mut_amt, 0, 1);
+
+      //Remap back to gene space
       genes[gene_index] = map(
         gene_val,
         0,
@@ -166,9 +186,8 @@ class Population {
         this.gene_ranges[gene_index][1]
       );
 
-      child.color = random(node_cols);
-      child.chromosome = genes;
+      child.color = random(node_cols); //Assign new random color if a mutant
+      child.chromosome = genes; //Assign new chromosome
     }
-    return child;
   }
 }
