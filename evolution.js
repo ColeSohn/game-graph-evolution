@@ -3,12 +3,12 @@
  * @author Cole Sohn
  * @description Contains classes and functions for evolving a Population class, which contains a set of Agents.
  * Each agent, which represents a set of parameters for drawing a graph, is assigned a fitness value.
- * The top x agents with the highest fitness values become part of the mating pool, where there parameters influnce
+ * The top x agents with the highest fitness values become part of the mating pool, where their parameters influence
  * the next generation of the population.
  */
 
 /**
- * @description A single sample from in a Population
+ * @description A single sample from a Population
  * In evolutionary terms: a single organism.
  */
  class Agent {
@@ -19,7 +19,7 @@
   }
 
   /**
-   * @description Initializes a generation 0 agent's local vars
+   * @description Initialize a generation 0 agent's local vars
    * @param  {Array 2D (Size Nx2)}  gene_ranges An array of bounds on gene values
    */
   init_starting_agent(gene_ranges) {
@@ -32,13 +32,13 @@
     }
 
     this.chromosome[0] = floor(this.chromosome[0]); //Number of initial nodes
-    this.chromosome[2] = floor(this.chromosome[2]); //Number additional BA nodes
+    this.chromosome[2] = floor(this.chromosome[2]); //Number of additional BA nodes
   }
 }
 
 /**
  * @description Contains a generation, which is a list of Agent objects.
- * Updates generation using Agents from the previous.
+ * Updates generation using Agents from the previous generation.
  */
 class Population {
   constructor(
@@ -86,8 +86,8 @@ class Population {
   }
 
   /**
-   * @description Reduces generation to a mating pool (subset of the current
-   * generation) based on fitness value,
+   * @description Reduce generation to a mating pool (subset of the current
+   * generation) based on fitness value.
    */
   cull_mating_pool() {
     this.generation.sort((a, b) => b.f - a.f);
@@ -98,7 +98,7 @@ class Population {
   }
 
   /**
-   * @description Selects random parents from the mating pool and appends resulting
+   * @description Select random parents from the mating pool and appends resulting
    * child to mating pool.
    */
   select_and_mate_parents() {
@@ -121,36 +121,33 @@ class Population {
   }
 
   /**
-   * @description Creates a child Agent object from two parent objects based on their
+   * @description Create a child Agent object from two parent objects based on their
    * chromosomes.
    */
-  mate(p1, p2) {
+  mate(parent_1, parent_2) {
     let genes = [];
 
     for (let i = 0; i < p1.chromosome.length; i++) {
-      let r = random();
-
-      if (r < 0.5) {
-        genes[i] = p1.chromosome[i];
+    // Take chromosome with 50% prob
+      if (random() < 0.5) {
+        genes[i] = parent_1.chromosome[i];
       } else {
-        genes[i] = p2.chromosome[i];
+        genes[i] = parent_2.chromosome[i];
       }
     }
 
-    let fitness = p1.fitness + p2.fitness;
-
+    let fitness = parent_1.fitness + parent_2.fitness;
     let child = new Agent(genes, fitness);
 
-    let parent_colors = [p1.color, p2.color];
-
-    child.color = random(parent_colors);
+    child.color = random([parent_1.color, parent_2.color]);
     let mut_amt = this.mutation_amt;
+    
     if (random() < this.mutant_prob) {
-      let g = floor(random(0, genes.length)); //Mutant Gene
+      let gene_index = floor(random(0, genes.length)); //Mutant Gene
       let gene_val = map(
-        genes[g],
-        this.gene_ranges[g][0],
-        this.gene_ranges[g][1],
+        genes[gene_index],
+        this.gene_ranges[gene_index][0],
+        this.gene_ranges[gene_index][1],
         0,
         1
       );
@@ -159,13 +156,14 @@ class Population {
         mut_amt *= -1;
       }
 
+      // Clamp value between 0 and 1
       gene_val = constrain(gene_val + mut_amt, 0, 1);
-      genes[g] = map(
+      genes[gene_index] = map(
         gene_val,
         0,
         1,
-        this.gene_ranges[g][0],
-        this.gene_ranges[g][1]
+        this.gene_ranges[gene_index][0],
+        this.gene_ranges[gene_index][1]
       );
 
       child.color = random(node_cols);
