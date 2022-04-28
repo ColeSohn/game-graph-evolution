@@ -1,153 +1,176 @@
-let p_range = //Node Spawning
-              [[1, 10], //Number RGG Nodes
-               [0, 1], //Distance threshold for RGG Edges
-               [0, 8], //Number BA Nodes
-               [0, 2], //BA attractedness
-               
-               //Forces
-               [0, 2], //Spring Force
-               [0.1, 0.8], //Spring Length
-               [0.1, 1], //Non-Adjacent Repulsion
-               [0, 0.2]]; //Position Step Size from forces
+/**
+ * @file evolution.js
+ * @author Cole Sohn
+ * @description Contains classes and functions for evolving a Population class, which contains a set of Agents.
+ * Each agent, which represents a set of parameters for drawing a graph, is assigned a fitness value.
+ * The top x agents with the highest fitness values become part of the mating pool, where there parameters influnce
+ * the next generation of the population.
+ */
 
-
-let mutant_prob = 1/9;
-let mutation_amt = 0.2;
-
-//Ratios closer to 1 kill off more pop each gen
-let cull_ratio = 0.7;
-
-class Agent{
-  constructor(chromosome=[], fitness=0){
-    this.c = chromosome;
-    this.f = fitness;
-    this.d_f = 0;
+/**
+ * @description A single sample from in a Population
+ * In evolutionary terms: a single organism.
+ */
+ class Agent {
+  constructor(chromosome = [], fitness = 0) {
+    this.chromosome = chromosome;
+    this.fitness = fitness;
     this.color = [255, 255, 255];
   }
-  
-  initStartingAgent(){
-    
-    this.c = [];
-    for(let [i,p] of p_range.entries()){
-      this.c[i] = random(p[0], p[1]);
-    }
-    
-    this.c[0] = floor(this.c[0]);
-    this.c[2] = floor(this.c[2]);
-    
-    this.f = 0;
+
+  /**
+   * @description Initializes a generation 0 agent's local vars
+   * @param  {Array 2D (Size Nx2)}  gene_ranges An array of bounds on gene values
+   */
+  init_starting_agent(gene_ranges) {
+    this.fitness = 0;
     this.color = random(node_cols);
+
+    this.chromosome = [];
+    for (let [i, p] of gene_ranges.entries()) {
+      this.chromosome[i] = random(p[0], p[1]);
+    }
+
+    this.chromosome[0] = floor(this.chromosome[0]); //Number of initial nodes
+    this.chromosome[2] = floor(this.chromosome[2]); //Number additional BA nodes
   }
 }
 
-class Population{
-  constructor(){
-    
-    //Size of each generation
-    this.pop_num = gal_rows*gal_cols*gal_num;
-    //Percent that survive each generation
-    this.cull_ratio = cull_ratio;
-    
+/**
+ * @description Contains a generation, which is a list of Agent objects.
+ * Updates generation using Agents from the previous.
+ */
+class Population {
+  constructor(
+    population_count,
+    gene_ranges,
+    survive_ratio = 0.3,
+    mutant_prob = 0.111,
+    mutation_amt = 0.2
+  ) {
+    this.population_count = population_count;
+    this.survive_ratio = survive_ratio;
+    this.gene_ranges = gene_ranges;
+    this.mutant_prob = mutant_prob;
+    this.mutation_amt = mutation_amt;
+
     this.gen_num = 0;
     this.generation = [];
     this.generation_next = [];
-    
-    this.initGen0(this.pop_num);
-    this.museum = new Museum(this.generation,this.gen_num);
+
+    this.init_gen_0(this.population_count);
+    this.museum = new Museum(this.generation, this.gen_num);
   }
-  
-  initGen0(num){
-    for(let n = 0; n<num; n++){
+
+  /**
+   * @description Initializes generation 0 agents
+   */
+  init_gen_0() {
+    for (let n = 0; n < this.population_count; n++) {
       let a = new Agent();
-      a.initStartingAgent();
-      this.generation[n]=a;
+      a.init_starting_agent(this.gene_ranges);
+      this.generation[n] = a;
     }
   }
-  
-  
-  nextGen(){
-    //Kill unfit
-    this.cullMatingPool();
-    
-    
-    //Debug display info about each gen
-    let info = [];
-    for(let agent of this.generation){
-       append(info, agent.f);
-    }
-    //print(info);
-    
-    //Mate Parents
-    this.selectandMateParents();
-    
-    //Update Gen Number
+
+  /**
+   * @description Updates generation.
+   * Produces the next list of agents from the current.
+   */
+  next_gen() {
+    this.cull_mating_pool(); //remove unfit agents
+    this.select_and_mate_parents(); //produce next generation
     this.gen_num++;
-    
-    //Update UI
-    this.museum = new Museum(this.generation,this.gen_num);
+
+    this.museum = new Museum(this.generation, this.gen_num); //Update UI
   }
-  
-  cullMatingPool(){
-    this.generation.sort((a, b) => b.f-a.f);
-    this.generation = this.generation.slice(0, this.generation.length*(1-this.cull_ratio));
+
+  /**
+   * @description Reduces generation to a mating pool (subset of the current
+   * generation) based on fitness value,
+   */
+  cull_mating_pool() {
+    this.generation.sort((a, b) => b.f - a.f);
+    this.generation = this.generation.slice(
+      0,
+      this.generation.length * this.survive_ratio
+    );
   }
-  
-  selectandMateParents(){
+
+  /**
+   * @description Selects random parents from the mating pool and appends resulting
+   * child to mating pool.
+   */
+  select_and_mate_parents() {
     let new_gen = [];
-    
-    while(new_gen.length < this.pop_num){
-    //Freeforall Parent selection
+
+    while (new_gen.length < this.population_count) {
       let p1 = random(this.generation);
       let p2 = random(this.generation);
-    
-      while(p2 == p1){
+
+      while (p2 == p1) {
         p2 = random(this.generation);
       }
-      
+
       let child = this.mate(p1, p2);
-      
-      //Mutate Child Here
-      
+
       append(new_gen, child);
     }
-    
+
     this.generation = new_gen;
   }
-  
-  mate(p1, p2){
+
+  /**
+   * @description Creates a child Agent object from two parent objects based on their
+   * chromosomes.
+   */
+  mate(p1, p2) {
     let genes = [];
-    
-    for(let i = 0; i<p1.c.length; i++){
+
+    for (let i = 0; i < p1.chromosome.length; i++) {
       let r = random();
-      
-      if(r<0.5){
-        genes[i] = p1.c[i];  
-      }
-      else{
-        genes[i] = p2.c[i];  
+
+      if (r < 0.5) {
+        genes[i] = p1.chromosome[i];
+      } else {
+        genes[i] = p2.chromosome[i];
       }
     }
-    
-    let fitness = p1.f+p2.f;
-    
-    let baby = new Agent(genes, fitness);
-    
+
+    let fitness = p1.fitness + p2.fitness;
+
+    let child = new Agent(genes, fitness);
+
     let parent_colors = [p1.color, p2.color];
-    
-    baby.color = random(parent_colors);
-    let mut_amt = mutation_amt;
-    if(random()<mutant_prob){
+
+    child.color = random(parent_colors);
+    let mut_amt = this.mutation_amt;
+    if (random() < this.mutant_prob) {
       let g = floor(random(0, genes.length)); //Mutant Gene
-      let gene_val = map(genes[g], p_range[g][0], p_range[g][1], 0, 1);
-      
-      if(random()>0.5){ mut_amt*=-1;}
-      
-      gene_val = constrain(gene_val+mut_amt, 0, 1);
-      genes[g]=map(gene_val, 0, 1, p_range[g][0], p_range[g][1]);
-      
-      baby.color = random(node_cols);
-      baby.c = genes;
+      let gene_val = map(
+        genes[g],
+        this.gene_ranges[g][0],
+        this.gene_ranges[g][1],
+        0,
+        1
+      );
+
+      if (random() > 0.5) {
+        mut_amt *= -1;
+      }
+
+      gene_val = constrain(gene_val + mut_amt, 0, 1);
+      genes[g] = map(
+        gene_val,
+        0,
+        1,
+        this.gene_ranges[g][0],
+        this.gene_ranges[g][1]
+      );
+
+      child.color = random(node_cols);
+      child.chromosome = genes;
     }
-    return baby;
+    return child;
   }
 }
